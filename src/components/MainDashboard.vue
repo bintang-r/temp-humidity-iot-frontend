@@ -5,12 +5,15 @@ import TopCards from './TopCards.vue'
 import MainChart from './MainChart.vue'
 import DataTable from './DataTable.vue'
 import DeviceManagement from './DeviceManagement.vue'
+import AccountManagement from './AccountManagement.vue'
 import axios from 'axios'
 import { io } from 'socket.io-client'
-import { HomeIcon, CpuChipIcon } from '@heroicons/vue/24/outline'
+import { HomeIcon, CpuChipIcon, UserIcon } from '@heroicons/vue/24/outline'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 const SOCKET_URL = API_BASE.replace('/api', '')
+
+const emit = defineEmits(['logout'])
 
 const currentView = ref('dashboard')
 const currentTemp = ref('--')
@@ -219,7 +222,7 @@ onUnmounted(() => {
 <template>
   <div class="flex h-screen overflow-hidden bg-[#f0f4f2]">
     <!-- Sidebar (desktop only) -->
-    <Sidebar :currentView="currentView" @navigate="(view) => currentView = view" />
+    <Sidebar :currentView="currentView" @navigate="(view) => currentView = view" @logout="emit('logout')" />
 
     <div class="flex-1 md:ml-64 flex flex-col h-screen overflow-hidden">
 
@@ -227,7 +230,7 @@ onUnmounted(() => {
       <header class="h-16 md:h-20 flex items-center justify-between px-4 md:px-8 bg-[#f0f4f2] z-10 shrink-0">
         <div>
           <h1 class="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
-            {{ currentView === 'devices' ? 'Perangkat & Token' : 'Dasbor' }}
+            {{ currentView === 'devices' ? 'Perangkat & Token' : currentView === 'account' ? 'Pengaturan Akun' : 'Dasbor' }}
           </h1>
           <p v-if="currentView === 'dashboard'" class="text-xs text-gray-400 mt-0.5">Monitor Sensor DHT11 Realtime</p>
         </div>
@@ -245,6 +248,9 @@ onUnmounted(() => {
 
         <!-- DEVICE MANAGEMENT VIEW -->
         <DeviceManagement v-if="currentView === 'devices'" />
+
+        <!-- ACCOUNT MANAGEMENT VIEW -->
+        <AccountManagement v-else-if="currentView === 'account'" />
 
         <!-- DASHBOARD VIEW -->
         <div v-else class="max-w-7xl mx-auto space-y-5">
@@ -394,6 +400,13 @@ onUnmounted(() => {
         >
           <CpuChipIcon class="w-6 h-6" />
           <span class="text-[10px] mt-1 font-medium">Perangkat</span>
+        </button>
+        <button
+          @click="currentView = 'account'"
+          :class="['flex-1 flex flex-col items-center py-3 transition', currentView === 'account' ? 'text-brand-light' : 'text-gray-400']"
+        >
+          <UserIcon class="w-6 h-6" />
+          <span class="text-[10px] mt-1 font-medium">Akun</span>
         </button>
       </nav>
 
