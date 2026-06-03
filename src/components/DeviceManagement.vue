@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
-import { PlusIcon, TrashIcon, DocumentDuplicateIcon, CheckIcon, ChevronDownIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, TrashIcon, DocumentDuplicateIcon, CheckIcon, ChevronDownIcon, CodeBracketIcon, NoSymbolIcon, PlayIcon } from '@heroicons/vue/24/outline'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 
@@ -43,6 +43,15 @@ const deleteDevice = async (id, name) => {
     await fetchDevices()
     showToast(`"${name}" berhasil dihapus.`)
   } catch { showToast('Gagal menghapus perangkat', 'error') }
+}
+
+const toggleDevice = async (device) => {
+  try {
+    const newStatus = !device.is_active;
+    await axios.put(`${API_BASE}/devices/${device.id}/toggle`, { is_active: newStatus });
+    await fetchDevices();
+    showToast(`Perangkat berhasil ${newStatus ? 'diaktifkan' : 'diblokir'}.`);
+  } catch { showToast('Gagal mengubah status perangkat', 'error') }
 }
 
 const copyToken = async (token, id) => {
@@ -276,8 +285,8 @@ onMounted(fetchDevices)
               </span>
               <div class="min-w-0">
                 <div class="flex items-center space-x-1.5">
-                  <div class="w-2 h-2 bg-brand-light rounded-full shrink-0"></div>
-                  <span class="font-semibold text-gray-900 text-sm truncate">{{ device.device_name }}</span>
+                  <div :class="['w-2 h-2 rounded-full shrink-0', device.is_active ? 'bg-brand-light' : 'bg-red-500']" :title="device.is_active ? 'Aktif' : 'Diblokir'"></div>
+                  <span class="font-semibold text-sm truncate" :class="device.is_active ? 'text-gray-900' : 'text-gray-400 line-through'">{{ device.device_name }}</span>
                 </div>
                 <p class="text-[10px] text-gray-400 mt-0.5">
                   {{ new Date(device.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }}
@@ -289,6 +298,12 @@ onMounted(fetchDevices)
                 :class="['w-8 h-8 flex items-center justify-center rounded-lg border transition',
                   expandedArduino === device.id ? 'bg-brand-light border-brand-light text-white' : 'border-gray-200 text-gray-400 hover:text-brand-light bg-white']">
                 <CodeBracketIcon class="w-4 h-4" />
+              </button>
+              <button @click="toggleDevice(device)" :title="device.is_active ? 'Blokir Perangkat' : 'Aktifkan Perangkat'"
+                :class="['w-8 h-8 flex items-center justify-center rounded-lg border transition',
+                  !device.is_active ? 'bg-orange-100 border-orange-200 text-orange-600' : 'border-gray-200 text-gray-400 hover:text-orange-500 bg-white']">
+                <NoSymbolIcon v-if="device.is_active" class="w-4 h-4" />
+                <PlayIcon v-else class="w-4 h-4" />
               </button>
               <button @click="copyToken(device.api_token, device.id)" title="Salin Token"
                 :class="['w-8 h-8 flex items-center justify-center rounded-lg border transition',

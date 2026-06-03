@@ -16,6 +16,11 @@ const currentView = ref('dashboard')
 const currentTemp = ref('--')
 const currentHum = ref('--')
 const activeDevices = ref(0)
+const lastUpdateTime = ref('--')
+
+const deviceLastSeen = ref({})
+const now = ref(Date.now())
+let nowInterval
 
 const devicesList = ref([])
 const selectedDevice = ref('') // '' = All devices
@@ -70,7 +75,6 @@ const chartData = computed(() => {
 // Stats: total logs & last update
 // ────────────────────────────────────
 const totalLogs = ref(0)
-const lastUpdateTime = ref('--')
 
 // ────────────────────────────────────
 // Fetch functions
@@ -80,7 +84,12 @@ const fetchDevices = async () => {
     const res = await axios.get(`${API_BASE}/devices`)
     devicesList.value = res.data
     activeDevices.value = res.data.length
-    // Default: "All Devices" → selectedDevice stays ''
+    if (res.data?.latest_readings) {
+      res.data.latest_readings.forEach(d => {
+        const time = new Date(d.created_at).getTime()
+        deviceLastSeen.value[d.device_id] = time
+      })
+    }
   } catch (e) { console.error('fetchDevices error', e) }
 }
 
@@ -143,6 +152,21 @@ watch(selectedDevice, async (newDeviceId) => {
   }
 })
 
+const getDeviceStatus = (dev) => {
+  if (dev.is_active === 0) return 'DIBLOKIR'
+  const last = deviceLastSeen.value[dev.id]
+  if (!last) return 'MENUNGGU'
+  // 30 seconds threshold
+  return (now.value - last < 30000) ? 'ONLINE' : 'OFFLINE'
+}
+
+const getStatusColor = (status) => {
+  if (status === 'ONLINE') return 'bg-brand-light text-brand-light'
+  if (status === 'OFFLINE') return 'bg-gray-400 text-gray-400'
+  if (status === 'DIBLOKIR') return 'bg-red-500 text-red-500'
+  return 'bg-orange-400 text-orange-400'
+}
+
 // ────────────────────────────────────
 // Socket.io
 // ────────────────────────────────────
@@ -150,9 +174,13 @@ onMounted(async () => {
   await fetchDevices()
   await fetchHistory()
 
+  nowInterval = setInterval(() => { now.value = Date.now() }, 5000)
+
   socket = io(SOCKET_URL)
 
   socket.on('new_sensor_data', (data) => {
+    deviceLastSeen.value[data.device_id] = Date.now()
+
     const newRow = {
       id: data.id,
       device_id: Number(data.device_id),
@@ -183,6 +211,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (nowInterval) clearInterval(nowInterval)
   if (socket) socket.disconnect()
 })
 </script>
@@ -324,15 +353,18 @@ onUnmounted(() => {
                 >
                   <div class="flex items-center space-x-3">
                     <div class="relative">
-                      <div class="w-3 h-3 bg-brand-light rounded-full"></div>
-                      <div class="absolute inset-0 w-3 h-3 bg-brand-light rounded-full animate-ping opacity-50"></div>
+                      <div class="w-3 h-3 rounded-full" :class="getStatusColor(getDeviceStatus(dev)).split(' ')[0]"></div>
+                      <div v-if="getDeviceStatus(dev) === 'ONLINE'" class="absolute inset-0 w-3 h-3 bg-brand-light rounded-full animate-ping opacity-50"></div>
                     </div>
                     <div>
-                      <p class="text-sm font-semibold text-white">{{ dev.device_name }}</p>
+                      <p class="text-sm font-semibold text-white" :class="{'line-through text-gray-500': dev.is_active === 0}">{{ dev.device_name }}</p>
                       <p class="text-xs text-gray-400">ID #{{ dev.id }}</p>
                     </div>
                   </div>
-                  <span class="text-[10px] font-bold bg-brand-light/20 text-brand-light px-2 py-1 rounded-full">ONLINE</span>
+                  <span class="text-[10px] font-bold px-2 py-1 rounded-full"
+                        :class="[getStatusColor(getDeviceStatus(dev)).split(' ')[0] + '/20', getStatusColor(getDeviceStatus(dev)).split(' ')[1]]">
+                    {{ getDeviceStatus(dev) }}
+                  </span>
                 </div>
               </div>
 
