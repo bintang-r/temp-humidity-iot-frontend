@@ -18,10 +18,8 @@ const emit = defineEmits(['navigate'])
   <aside class="hidden md:flex w-64 bg-brand text-white flex-col h-screen fixed left-0 top-0 overflow-y-auto z-30">
     <!-- Logo -->
     <div class="p-6 flex items-center space-x-3">
-      <div class="w-8 h-8 bg-brand-light rounded-lg flex items-center justify-center">
-        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+        <img src="/logo.png" alt="Logo" class="w-full h-full object-cover" />
       </div>
       <span class="text-xl font-bold tracking-wide">DHT11 Monitor</span>
     </div>
