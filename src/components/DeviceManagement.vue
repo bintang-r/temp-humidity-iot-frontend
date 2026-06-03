@@ -69,133 +69,169 @@ const toggleArduino = (id) => {
 
 const getArduinoCode = (device) => {
   return `// ============================================================
-// DHT11 Realtime Monitor - Kode Arduino
+// DHT11 Realtime Monitor - ESP32
 // Perangkat : ${device.device_name}
 // ID        : ${device.id}
 // Dibuat    : ${new Date(device.created_at).toLocaleDateString('id-ID')}
 // ============================================================
 
-// -----------------------------------------------------------
-// Library yang diperlukan
-// Instal melalui Library Manager di Arduino IDE:
-//   - "DHT sensor library" oleh Adafruit
-//   - "ESP8266HTTPClient" (sudah bawaan jika pakai ESP8266)
-//   - "ArduinoJson" oleh Benoit Blanchon
-// -----------------------------------------------------------
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
 
 // -----------------------------------------------------------
 // Konfigurasi WiFi
-// Ganti sesuai dengan jaringan WiFi Anda
 // -----------------------------------------------------------
-const char* WIFI_SSID     = "NAMA_WIFI_ANDA";
-const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";
+const char* WIFI_SSID     = "BINTANG";
+const char* WIFI_PASSWORD = "bintanG321123";
 
 // -----------------------------------------------------------
 // Konfigurasi Server
-// Otomatis mengambil dari .env Vue JS
 // -----------------------------------------------------------
-const char* SERVER_URL = "${API_BASE}/sensor/data";
+const char* SERVER_URL = "http://192.168.1.9:5000/api/sensor/data";
 
 // -----------------------------------------------------------
-// Token API (sudah digenerate dari dashboard)
-// JANGAN UBAH nilai ini
+// API Token
 // -----------------------------------------------------------
 const char* API_TOKEN = "${device.api_token}";
 
 // -----------------------------------------------------------
-// Konfigurasi Pin DHT11
-// Hubungkan pin DATA dari sensor DHT11 ke pin ini
+// Konfigurasi DHT11
 // -----------------------------------------------------------
-#define DHTPIN D4          // Pin data DHT11 (GPIO2 pada ESP8266)
-#define DHTTYPE DHT11      // Tipe sensor: DHT11
-
-// -----------------------------------------------------------
-// Interval pengiriman data (dalam milidetik)
-// 5000 = setiap 5 detik
-// -----------------------------------------------------------
-#define KIRIM_INTERVAL 5000
+// Ganti sesuai pin yang digunakan
+#define DHTPIN 4
+#define DHTTYPE DHT11
 
 DHT dht(DHTPIN, DHTTYPE);
 
-void setup() {
-  // Inisialisasi Serial Monitor
-  Serial.begin(115200);
-  Serial.println("\\n=== DHT11 Realtime Monitor ===");
-  Serial.println("Perangkat: ${device.device_name}");
+// -----------------------------------------------------------
+// Interval pengiriman data (5 detik)
+// -----------------------------------------------------------
+const unsigned long KIRIM_INTERVAL = 5000;
+unsigned long waktuSebelumnya = 0;
 
-  // Inisialisasi sensor DHT11
-  dht.begin();
+// -----------------------------------------------------------
+// Fungsi Koneksi WiFi
+// -----------------------------------------------------------
+void connectWiFi() {
 
-  // Sambungkan ke WiFi
+  Serial.println();
+  Serial.print("Menghubungkan ke WiFi: ");
+  Serial.println(WIFI_SSID);
+
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Menyambung ke WiFi");
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\\nWiFi tersambung!");
-  Serial.print("Alamat IP: ");
+
+  Serial.println();
+  Serial.println("WiFi Berhasil Terhubung");
+  Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
 }
 
+// -----------------------------------------------------------
+// Setup
+// -----------------------------------------------------------
+void setup() {
+
+  Serial.begin(115200);
+  delay(1000);
+
+  Serial.println("==================================");
+  Serial.println("DHT11 Realtime Monitor ESP32");
+  Serial.println("Perangkat : ${device.device_name}");
+  Serial.println("==================================");
+
+  dht.begin();
+
+  connectWiFi();
+}
+
+// -----------------------------------------------------------
+// Loop
+// -----------------------------------------------------------
 void loop() {
-  // Baca data dari sensor
-  float suhu = dht.readTemperature();
-  float kelembaban = dht.readHumidity();
 
-  // Periksa apakah pembacaan berhasil
-  if (isnan(suhu) || isnan(kelembaban)) {
-    Serial.println("[ERROR] Gagal membaca sensor DHT11!");
-    delay(2000);
-    return;
-  }
-
-  // Tampilkan di Serial Monitor
-  Serial.print("Suhu: ");
-  Serial.print(suhu);
-  Serial.print(" °C | Kelembaban: ");
-  Serial.print(kelembaban);
-  Serial.println(" %");
-
-  // Kirim data ke server
-  if (WiFi.status() == WL_CONNECTED) {
-    WiFiClient client;
-    HTTPClient http;
-    http.begin(client, SERVER_URL);
-    http.addHeader("Content-Type", "application/json");
-
-    // Buat JSON payload
-    StaticJsonDocument<200> doc;
-    doc["api_token"]    = API_TOKEN;
-    doc["temperature"]  = suhu;
-    doc["humidity"]     = kelembaban;
-
-    String jsonPayload;
-    serializeJson(doc, jsonPayload);
-
-    // Kirim POST request
-    int httpCode = http.POST(jsonPayload);
-
-    if (httpCode > 0) {
-      Serial.print("[OK] Server merespons: ");
-      Serial.println(http.getString());
-    } else {
-      Serial.print("[ERROR] Gagal mengirim: ");
-      Serial.println(http.errorToString(httpCode));
-    }
-
-    http.end();
-  } else {
-    Serial.println("[WARN] WiFi tidak tersambung, mencoba ulang...");
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi terputus, mencoba reconnect...");
     WiFi.reconnect();
   }
 
-  // Tunggu sebelum mengirim ulang
-  delay(KIRIM_INTERVAL);
+  unsigned long sekarang = millis();
+
+  if (sekarang - waktuSebelumnya >= KIRIM_INTERVAL) {
+
+    waktuSebelumnya = sekarang;
+
+    float suhu = dht.readTemperature();
+    float kelembaban = dht.readHumidity();
+
+    if (isnan(suhu) || isnan(kelembaban)) {
+
+      Serial.println("[ERROR] Gagal membaca sensor DHT11");
+      return;
+    }
+
+    Serial.println("----------------------------------");
+    Serial.print("Suhu       : ");
+    Serial.print(suhu);
+    Serial.println(" °C");
+
+    Serial.print("Kelembaban : ");
+    Serial.print(kelembaban);
+    Serial.println(" %");
+
+    if (WiFi.status() == WL_CONNECTED) {
+
+      WiFiClient client;
+      HTTPClient http;
+
+      http.begin(client, SERVER_URL);
+      http.addHeader("Content-Type", "application/json");
+
+      StaticJsonDocument<256> doc;
+
+      doc["api_token"]   = API_TOKEN;
+      doc["temperature"] = suhu;
+      doc["humidity"]    = kelembaban;
+
+      String payload;
+      serializeJson(doc, payload);
+
+      Serial.print("Mengirim JSON: ");
+      Serial.println(payload);
+
+      int httpCode = http.POST(payload);
+
+      if (httpCode > 0) {
+
+        String response = http.getString();
+
+        Serial.print("[OK] HTTP Code : ");
+        Serial.println(httpCode);
+
+        Serial.print("[OK] Response  : ");
+        Serial.println(response);
+
+      } else {
+
+        Serial.print("[ERROR] HTTP Gagal : ");
+        Serial.println(http.errorToString(httpCode));
+      }
+
+      http.end();
+
+    } else {
+
+      Serial.println("[WARN] WiFi tidak terhubung");
+    }
+  }
 }`
 }
 

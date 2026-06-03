@@ -78,6 +78,10 @@ const chartData = computed(() => {
 // Stats: total logs & last update
 // ────────────────────────────────────
 const totalLogs = ref(0)
+const currentPage = ref(1)
+const totalPages = ref(1)
+const PAGE_LIMIT = 10
+const isTableLoading = ref(false)
 
 // ────────────────────────────────────
 // Fetch functions
@@ -96,13 +100,16 @@ const fetchDevices = async () => {
   } catch (e) { console.error('fetchDevices error', e) }
 }
 
-const fetchHistory = async () => {
+const fetchHistory = async (page = currentPage.value) => {
   try {
-    const params = { limit: 100 }
+    isTableLoading.value = true
+    const params = { limit: PAGE_LIMIT, page }
     if (selectedDevice.value) params.device_id = selectedDevice.value
 
     const res = await axios.get(`${API_BASE}/sensor/history`, { params })
-    tableData.value = res.data.map(item => ({
+    const { data, total, totalPages: tp } = res.data
+
+    tableData.value = data.map(item => ({
       id: item.id,
       device_id: Number(item.device_id),
       node: item.device_name,
@@ -111,9 +118,17 @@ const fetchHistory = async () => {
       status: 'Active',
       time: new Date(item.created_at).toLocaleTimeString()
     }))
-    totalLogs.value = tableData.value.length
+    totalLogs.value = total
+    totalPages.value = tp
+    currentPage.value = page
     updateLatestCards()
-  } catch (e) { console.error('fetchHistory error', e) }
+  } catch (e) { console.error('fetchHistory error', e) } finally {
+    isTableLoading.value = false
+  }
+}
+
+const goToPage = (page) => {
+  if (page >= 1 && page <= totalPages.value) fetchHistory(page)
 }
 
 const updateLatestCards = () => {
@@ -137,7 +152,8 @@ watch(selectedDevice, async (newDeviceId) => {
   currentHum.value = '--'
   lastUpdateTime.value = '--'
 
-  await fetchHistory()
+  currentPage.value = 1
+  await fetchHistory(1)
 
   // Immediately load latest reading for that device from the server
   if (newDeviceId) {
@@ -339,7 +355,15 @@ onUnmounted(() => {
           <!-- ── Bottom Row: Data Table + Node Status ── -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div class="lg:col-span-2">
-              <DataTable :tableData="filteredTableData" />
+              <DataTable 
+                :tableData="filteredTableData"
+                :currentPage="currentPage"
+                :totalPages="totalPages"
+                :total="totalLogs"
+                :limit="PAGE_LIMIT"
+                :isLoading="isTableLoading"
+                @page-change="goToPage"
+              />
             </div>
 
             <!-- Node status card -->
