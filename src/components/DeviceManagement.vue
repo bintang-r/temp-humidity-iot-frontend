@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { PlusIcon, TrashIcon, DocumentDuplicateIcon, CheckIcon, ChevronDownIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
 
-const API_BASE = 'http://localhost:5000/api'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 
 const devices = ref([])
 const newDeviceName = ref('')
@@ -87,10 +87,9 @@ const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";
 
 // -----------------------------------------------------------
 // Konfigurasi Server
-// Ganti IP_SERVER dengan alamat IP komputer yang menjalankan
-// backend Node.js (contoh: 192.168.1.100)
+// Otomatis mengambil dari .env Vue JS
 // -----------------------------------------------------------
-const char* SERVER_URL = "http://IP_SERVER:5000/api/sensor/data";
+const char* SERVER_URL = "${API_BASE}/sensor/data";
 
 // -----------------------------------------------------------
 // Token API (sudah digenerate dari dashboard)
@@ -342,7 +341,7 @@ onMounted(fetchDevices)
       </h3>
       <p class="text-gray-600 text-xs md:text-sm mb-3">Kirim permintaan POST ke endpoint backend:</p>
       <div class="bg-gray-900 text-green-400 font-mono text-[10px] md:text-xs rounded-xl p-3 md:p-4 overflow-x-auto">
-        <pre>POST http://&lt;ip-server&gt;:5000/api/sensor/data
+        <pre>POST {{ API_BASE }}/sensor/data
 Content-Type: application/json
 
 {

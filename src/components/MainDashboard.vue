@@ -9,7 +9,8 @@ import axios from 'axios'
 import { io } from 'socket.io-client'
 import { HomeIcon, CpuChipIcon } from '@heroicons/vue/24/outline'
 
-const API_BASE = 'http://localhost:5000/api'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+const SOCKET_URL = API_BASE.replace('/api', '')
 
 const currentView = ref('dashboard')
 const currentTemp = ref('--')
@@ -149,7 +150,7 @@ onMounted(async () => {
   await fetchDevices()
   await fetchHistory()
 
-  socket = io('http://localhost:5000')
+  socket = io(SOCKET_URL)
 
   socket.on('new_sensor_data', (data) => {
     const newRow = {
