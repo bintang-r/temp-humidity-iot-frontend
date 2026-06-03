@@ -24,30 +24,11 @@ ChartJS.register(
   Filler
 )
 
-const chartData = ref({
-  labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8'],
-  datasets: [
-    {
-      label: 'Temperature (°C)',
-      borderColor: '#0C2B1C',
-      backgroundColor: 'rgba(12, 43, 28, 0.1)',
-      borderWidth: 2,
-      pointBackgroundColor: '#0C2B1C',
-      pointRadius: 3,
-      fill: true,
-      data: [30, 31, 31.5, 32, 32.5, 33, 32.8, 32.5]
-    },
-    {
-      label: 'Humidity (%)',
-      borderColor: '#18A058',
-      backgroundColor: 'rgba(24, 160, 88, 0.1)',
-      borderWidth: 2,
-      pointBackgroundColor: '#18A058',
-      pointRadius: 3,
-      fill: true,
-      data: [60, 62, 61, 65, 68, 67, 66, 65]
-    }
-  ]
+const props = defineProps({
+  chartData: {
+    type: Object,
+    required: true
+  }
 })
 
 const chartOptions = ref({

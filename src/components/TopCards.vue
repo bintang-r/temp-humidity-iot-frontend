@@ -1,7 +1,7 @@
 <script setup>
 defineProps({
-  temperature: { type: Number, default: 0 },
-  humidity: { type: Number, default: 0 },
+  temperature: { type: [Number, String], default: '--' },
+  humidity: { type: [Number, String], default: '--' },
   devices: { type: Number, default: 0 }
 })
 </script>
@@ -14,7 +14,7 @@ defineProps({
       <div class="z-10 relative">
         <h3 class="text-brand-accent font-medium text-sm mb-2">Current Temperature</h3>
         <div class="flex items-end space-x-2">
-          <span class="text-4xl font-semibold">{{ temperature.toFixed(2) }} °C</span>
+          <span class="text-4xl font-semibold">{{ typeof temperature === 'number' ? temperature.toFixed(2) : temperature }} °C</span>
         </div>
         <div class="mt-4 flex items-center space-x-2 text-brand-light text-sm font-medium bg-brand-light/20 w-fit px-2 py-1 rounded-full">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,7 +39,7 @@ defineProps({
       <div>
         <h3 class="text-gray-500 font-medium text-sm mb-2">Environmental Humidity</h3>
         <div class="flex items-end space-x-2">
-          <span class="text-4xl font-semibold text-gray-900">{{ humidity.toFixed(2) }}<span class="text-2xl text-gray-500 font-medium">/100%</span></span>
+          <span class="text-4xl font-semibold text-gray-900">{{ typeof humidity === 'number' ? humidity.toFixed(2) : humidity }}<span class="text-2xl text-gray-500 font-medium">/100%</span></span>
         </div>
         <div class="mt-4 flex items-center space-x-2 text-red-500 text-sm font-medium">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
