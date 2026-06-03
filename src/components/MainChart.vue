@@ -1,0 +1,118 @@
+<script setup>
+import { ref, onMounted } from 'vue'
+import { Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
+
+const chartData = ref({
+  labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8'],
+  datasets: [
+    {
+      label: 'Temperature (°C)',
+      borderColor: '#0C2B1C',
+      backgroundColor: 'rgba(12, 43, 28, 0.1)',
+      borderWidth: 2,
+      pointBackgroundColor: '#0C2B1C',
+      pointRadius: 3,
+      fill: true,
+      data: [30, 31, 31.5, 32, 32.5, 33, 32.8, 32.5]
+    },
+    {
+      label: 'Humidity (%)',
+      borderColor: '#18A058',
+      backgroundColor: 'rgba(24, 160, 88, 0.1)',
+      borderWidth: 2,
+      pointBackgroundColor: '#18A058',
+      pointRadius: 3,
+      fill: true,
+      data: [60, 62, 61, 65, 68, 67, 66, 65]
+    }
+  ]
+})
+
+const chartOptions = ref({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'top',
+      align: 'end',
+      labels: {
+        usePointStyle: true,
+        boxWidth: 8,
+        font: {
+          family: "'Inter', sans-serif",
+          size: 12
+        }
+      }
+    },
+    tooltip: {
+      backgroundColor: '#0C2B1C',
+      padding: 12,
+      cornerRadius: 8,
+      titleFont: { size: 13 },
+      bodyFont: { size: 13 }
+    }
+  },
+  scales: {
+    y: {
+      beginAtZero: false,
+      grid: {
+        color: '#f1f5f9',
+        drawBorder: false
+      },
+      ticks: {
+        color: '#94a3b8',
+        font: { size: 11 }
+      }
+    },
+    x: {
+      grid: {
+        display: false,
+        drawBorder: false
+      },
+      ticks: {
+        color: '#94a3b8',
+        font: { size: 11 }
+      }
+    }
+  }
+})
+</script>
+
+<template>
+  <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 h-full flex flex-col">
+    <div class="flex items-center justify-between mb-6">
+      <h3 class="text-gray-900 font-medium text-lg">Realtime Traffic Index</h3>
+      <select class="bg-gray-100 text-gray-700 text-sm rounded-full px-4 py-1.5 outline-none focus:ring-2 focus:ring-brand-light">
+        <option>Last 1 hour</option>
+        <option>Last 24 hours</option>
+        <option>All time</option>
+      </select>
+    </div>
+    
+    <div class="flex-1 relative min-h-[300px]">
+      <Line :data="chartData" :options="chartOptions" />
+    </div>
+  </div>
+</template>
