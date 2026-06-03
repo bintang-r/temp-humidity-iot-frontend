@@ -1,12 +1,12 @@
 <script setup>
 import { ref } from 'vue'
 
-const tableData = ref([
-  { id: 1, node: 'Node 1 (ESP32)', location: 'Greenhouse A', temp: 32.5, hum: 65, status: 'Active', time: '10:45 AM' },
-  { id: 2, node: 'Node 2 (ESP8266)', location: 'Greenhouse B', temp: 31.0, hum: 60, status: 'Active', time: '10:44 AM' },
-  { id: 3, node: 'Node 3 (ESP32)', location: 'Storage Room', temp: 28.4, hum: 55, status: 'Warning', time: '10:42 AM' },
-  { id: 4, node: 'Node 4 (ESP8266)', location: 'Outdoor', temp: 34.2, hum: 45, status: 'Active', time: '10:40 AM' },
-]);
+const props = defineProps({
+  tableData: {
+    type: Array,
+    default: () => []
+  }
+});
 </script>
 
 <template>
@@ -31,7 +31,10 @@ const tableData = ref([
           </tr>
         </thead>
         <tbody class="text-sm">
-          <tr v-for="item in tableData" :key="item.id" class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
+            <tr v-if="tableData.length === 0">
+              <td colspan="6" class="py-8 text-center text-gray-500">No traffic data yet.</td>
+            </tr>
+            <tr v-for="item in tableData" :key="item.id" class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
             <td class="py-4">
               <div class="flex items-center space-x-3">
                 <div class="w-2 h-2 rounded-full" :class="item.status === 'Active' ? 'bg-brand-light' : 'bg-orange-400'"></div>

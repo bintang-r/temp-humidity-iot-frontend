@@ -4,16 +4,90 @@ import Sidebar from './Sidebar.vue'
 import TopCards from './TopCards.vue'
 import MainChart from './MainChart.vue'
 import DataTable from './DataTable.vue'
+import DeviceManagement from './DeviceManagement.vue'
+import axios from 'axios'
+import { io } from 'socket.io-client'
+import { onMounted, onUnmounted } from 'vue'
 
-const currentTemp = ref(32.5);
-const currentHum = ref(65.0);
-const activeDevices = ref(3);
+const currentView = ref('dashboard');
+const currentTemp = ref(0);
+const currentHum = ref(0);
+const activeDevices = ref(0);
 
+const latestReadings = ref([]);
+const tableData = ref([]);
+
+let socket;
+
+const fetchDashboardData = async () => {
+  try {
+    const res = await axios.get('http://localhost:5000/api/sensor/dashboard')
+    const { latest_readings, total_devices } = res.data;
+    activeDevices.value = total_devices;
+    
+    if (latest_readings && latest_readings.length > 0) {
+      // Get the most recent one for the top cards
+      const latest = latest_readings[0];
+      currentTemp.value = parseFloat(latest.temperature);
+      currentHum.value = parseFloat(latest.humidity);
+    }
+  } catch (error) {
+    console.error('Error fetching dashboard stats', error);
+  }
+}
+
+const fetchHistory = async () => {
+  try {
+    const res = await axios.get('http://localhost:5000/api/sensor/history?limit=10')
+    tableData.value = res.data.map(item => ({
+      id: item.id,
+      node: item.device_name,
+      location: 'Default Location',
+      temp: item.temperature,
+      hum: item.humidity,
+      status: 'Active',
+      time: new Date(item.created_at).toLocaleTimeString()
+    }))
+  } catch (error) {
+    console.error('Error fetching history', error);
+  }
+}
+
+onMounted(() => {
+  fetchDashboardData();
+  fetchHistory();
+
+  socket = io('http://localhost:5000');
+  
+  socket.on('new_sensor_data', (data) => {
+    currentTemp.value = parseFloat(data.temperature);
+    currentHum.value = parseFloat(data.humidity);
+    
+    // Unshift to table data
+    tableData.value.unshift({
+      id: data.id,
+      node: data.device_name,
+      location: 'Default Location',
+      temp: data.temperature,
+      hum: data.humidity,
+      status: 'Active',
+      time: new Date(data.created_at).toLocaleTimeString()
+    });
+
+    if (tableData.value.length > 10) {
+      tableData.value.pop();
+    }
+  });
+});
+
+onUnmounted(() => {
+  if (socket) socket.disconnect();
+})
 </script>
 
 <template>
   <div class="flex h-screen overflow-hidden bg-[#f0f4f2]">
-    <Sidebar />
+    <Sidebar :currentView="currentView" @navigate="(view) => currentView = view" />
     
     <div class="flex-1 md:ml-64 relative flex flex-col h-screen overflow-hidden">
       
@@ -35,7 +109,11 @@ const activeDevices = ref(3);
 
       <!-- Main content scrollable area -->
       <main class="flex-1 overflow-y-auto p-8 pt-0">
-        <div class="max-w-7xl mx-auto space-y-6">
+        <!-- DEVICE MANAGEMENT VIEW -->
+        <DeviceManagement v-if="currentView === 'devices'" />
+
+        <!-- DASHBOARD VIEW -->
+        <div v-else class="max-w-7xl mx-auto space-y-6">
           
           <!-- Top Cards Row -->
           <TopCards 
@@ -94,7 +172,7 @@ const activeDevices = ref(3);
           <!-- Bottom Row: Data Table & Global Map -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2">
-              <DataTable />
+              <DataTable :tableData="tableData" />
             </div>
             <div class="bg-[#0f172a] rounded-3xl p-6 shadow-sm flex flex-col text-white relative overflow-hidden">
                <h3 class="font-medium text-gray-300 z-10">Sensor Connectivity</h3>
