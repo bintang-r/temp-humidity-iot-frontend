@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
-import { PlusIcon, TrashIcon, DocumentDuplicateIcon, CheckIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, TrashIcon, DocumentDuplicateIcon, CheckIcon, ChevronDownIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
 
 const API_BASE = 'http://localhost:5000/api'
 
@@ -9,10 +9,11 @@ const devices = ref([])
 const newDeviceName = ref('')
 const isLoading = ref(false)
 const copiedId = ref(null)
+const expandedArduino = ref(null)
 const toast = ref({ show: false, message: '', type: 'success' })
 
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
+const showToast = (msg, type = 'success') => {
+  toast.value = { show: true, message: msg, type }
   setTimeout(() => { toast.value.show = false }, 3000)
 }
 
@@ -20,9 +21,7 @@ const fetchDevices = async () => {
   try {
     const res = await axios.get(`${API_BASE}/devices`)
     devices.value = res.data
-  } catch {
-    showToast('Failed to fetch devices', 'error')
-  }
+  } catch { showToast('Gagal mengambil data perangkat', 'error') }
 }
 
 const addDevice = async () => {
@@ -32,51 +31,184 @@ const addDevice = async () => {
     await axios.post(`${API_BASE}/devices`, { device_name: newDeviceName.value.trim() })
     newDeviceName.value = ''
     await fetchDevices()
-    showToast('Device created successfully! Copy the token below.')
-  } catch {
-    showToast('Failed to create device', 'error')
-  } finally {
-    isLoading.value = false
-  }
+    showToast('Perangkat berhasil dibuat! Salin token di bawah.')
+  } catch { showToast('Gagal membuat perangkat', 'error') }
+  finally { isLoading.value = false }
 }
 
 const deleteDevice = async (id, name) => {
-  if (!confirm(`Delete device "${name}"? All its sensor logs will also be deleted.`)) return
+  if (!confirm(`Hapus perangkat "${name}"? Semua log sensor-nya juga akan dihapus.`)) return
   try {
     await axios.delete(`${API_BASE}/devices/${id}`)
     await fetchDevices()
-    showToast(`"${name}" deleted.`, 'success')
-  } catch {
-    showToast('Failed to delete device', 'error')
-  }
+    showToast(`"${name}" berhasil dihapus.`)
+  } catch { showToast('Gagal menghapus perangkat', 'error') }
 }
 
 const copyToken = async (token, id) => {
   try {
     await navigator.clipboard.writeText(token)
     copiedId.value = id
-    showToast('API Token copied to clipboard!')
+    showToast('Token API berhasil disalin!')
     setTimeout(() => { copiedId.value = null }, 2000)
-  } catch {
-    showToast('Copy failed — please copy manually', 'error')
+  } catch { showToast('Gagal menyalin — salin secara manual', 'error') }
+}
+
+const toggleArduino = (id) => {
+  expandedArduino.value = expandedArduino.value === id ? null : id
+}
+
+const getArduinoCode = (device) => {
+  return `// ============================================================
+// DHT11 Realtime Monitor - Kode Arduino
+// Perangkat : ${device.device_name}
+// ID        : ${device.id}
+// Dibuat    : ${new Date(device.created_at).toLocaleDateString('id-ID')}
+// ============================================================
+
+// -----------------------------------------------------------
+// Library yang diperlukan
+// Instal melalui Library Manager di Arduino IDE:
+//   - "DHT sensor library" oleh Adafruit
+//   - "ESP8266HTTPClient" (sudah bawaan jika pakai ESP8266)
+//   - "ArduinoJson" oleh Benoit Blanchon
+// -----------------------------------------------------------
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
+
+// -----------------------------------------------------------
+// Konfigurasi WiFi
+// Ganti sesuai dengan jaringan WiFi Anda
+// -----------------------------------------------------------
+const char* WIFI_SSID     = "NAMA_WIFI_ANDA";
+const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";
+
+// -----------------------------------------------------------
+// Konfigurasi Server
+// Ganti IP_SERVER dengan alamat IP komputer yang menjalankan
+// backend Node.js (contoh: 192.168.1.100)
+// -----------------------------------------------------------
+const char* SERVER_URL = "http://IP_SERVER:5000/api/sensor/data";
+
+// -----------------------------------------------------------
+// Token API (sudah digenerate dari dashboard)
+// JANGAN UBAH nilai ini
+// -----------------------------------------------------------
+const char* API_TOKEN = "${device.api_token}";
+
+// -----------------------------------------------------------
+// Konfigurasi Pin DHT11
+// Hubungkan pin DATA dari sensor DHT11 ke pin ini
+// -----------------------------------------------------------
+#define DHTPIN D4          // Pin data DHT11 (GPIO2 pada ESP8266)
+#define DHTTYPE DHT11      // Tipe sensor: DHT11
+
+// -----------------------------------------------------------
+// Interval pengiriman data (dalam milidetik)
+// 5000 = setiap 5 detik
+// -----------------------------------------------------------
+#define KIRIM_INTERVAL 5000
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  // Inisialisasi Serial Monitor
+  Serial.begin(115200);
+  Serial.println("\\n=== DHT11 Realtime Monitor ===");
+  Serial.println("Perangkat: ${device.device_name}");
+
+  // Inisialisasi sensor DHT11
+  dht.begin();
+
+  // Sambungkan ke WiFi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Menyambung ke WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
+  Serial.println("\\nWiFi tersambung!");
+  Serial.print("Alamat IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  // Baca data dari sensor
+  float suhu = dht.readTemperature();
+  float kelembaban = dht.readHumidity();
+
+  // Periksa apakah pembacaan berhasil
+  if (isnan(suhu) || isnan(kelembaban)) {
+    Serial.println("[ERROR] Gagal membaca sensor DHT11!");
+    delay(2000);
+    return;
+  }
+
+  // Tampilkan di Serial Monitor
+  Serial.print("Suhu: ");
+  Serial.print(suhu);
+  Serial.print(" °C | Kelembaban: ");
+  Serial.print(kelembaban);
+  Serial.println(" %");
+
+  // Kirim data ke server
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClient client;
+    HTTPClient http;
+    http.begin(client, SERVER_URL);
+    http.addHeader("Content-Type", "application/json");
+
+    // Buat JSON payload
+    StaticJsonDocument<200> doc;
+    doc["api_token"]    = API_TOKEN;
+    doc["temperature"]  = suhu;
+    doc["humidity"]     = kelembaban;
+
+    String jsonPayload;
+    serializeJson(doc, jsonPayload);
+
+    // Kirim POST request
+    int httpCode = http.POST(jsonPayload);
+
+    if (httpCode > 0) {
+      Serial.print("[OK] Server merespons: ");
+      Serial.println(http.getString());
+    } else {
+      Serial.print("[ERROR] Gagal mengirim: ");
+      Serial.println(http.errorToString(httpCode));
+    }
+
+    http.end();
+  } else {
+    Serial.println("[WARN] WiFi tidak tersambung, mencoba ulang...");
+    WiFi.reconnect();
+  }
+
+  // Tunggu sebelum mengirim ulang
+  delay(KIRIM_INTERVAL);
+}`
+}
+
+const copyArduinoCode = async (device) => {
+  try {
+    await navigator.clipboard.writeText(getArduinoCode(device))
+    showToast('Kode Arduino berhasil disalin!')
+  } catch { showToast('Gagal menyalin kode', 'error') }
 }
 
 onMounted(fetchDevices)
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto space-y-6">
+  <div class="max-w-4xl mx-auto space-y-4 md:space-y-6">
 
-    <!-- Toast notification -->
+    <!-- Toast -->
     <Transition name="toast">
-      <div
-        v-if="toast.show"
-        :class="[
-          'fixed top-6 right-6 z-50 flex items-center space-x-3 px-5 py-3.5 rounded-2xl shadow-xl text-sm font-medium',
-          toast.type === 'success' ? 'bg-brand text-white' : 'bg-red-600 text-white'
-        ]"
-      >
+      <div v-if="toast.show"
+        :class="['fixed top-4 right-4 z-50 flex items-center space-x-3 px-4 py-3 rounded-2xl shadow-xl text-sm font-medium',
+          toast.type === 'success' ? 'bg-brand text-white' : 'bg-red-600 text-white']">
         <CheckIcon v-if="toast.type === 'success'" class="w-4 h-4 shrink-0" />
         <svg v-else class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -86,141 +218,135 @@ onMounted(fetchDevices)
     </Transition>
 
     <!-- Header -->
-    <div class="bg-brand rounded-3xl p-6 text-white">
-      <h2 class="text-xl font-bold mb-1">Device & API Token Management</h2>
-      <p class="text-brand-accent/80 text-sm leading-relaxed">
-        Register each DHT11 sensor node here to get a unique API Token.
-        The ESP32/ESP8266 must include this token in every POST request to authenticate itself.
+    <div class="bg-brand rounded-2xl md:rounded-3xl p-4 md:p-6 text-white">
+      <h2 class="text-lg md:text-xl font-bold mb-1">Kelola Perangkat & Token API</h2>
+      <p class="text-brand-accent/80 text-xs md:text-sm leading-relaxed">
+        Daftarkan setiap node sensor DHT11 di sini untuk mendapatkan Token API unik.
+        ESP32/ESP8266 harus menyertakan token ini di setiap pengiriman data.
       </p>
     </div>
 
-    <!-- Add device form -->
-    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-      <h3 class="text-gray-900 font-semibold mb-4">Register New Device</h3>
+    <!-- Formulir Tambah -->
+    <div class="bg-white rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-sm border border-gray-100">
+      <h3 class="text-gray-900 font-semibold text-sm md:text-base mb-3 md:mb-4">Daftarkan Perangkat Baru</h3>
       <form @submit.prevent="addDevice" class="flex flex-col sm:flex-row gap-3">
-        <input
-          v-model="newDeviceName"
-          type="text"
-          placeholder="e.g. ESP32 Greenhouse A"
-          maxlength="60"
-          class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light focus:border-transparent"
-          required
-        />
-        <button
-          type="submit"
-          :disabled="isLoading || !newDeviceName.trim()"
-          class="bg-brand text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-brand/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[160px] shadow-md shadow-brand/20"
-        >
+        <input v-model="newDeviceName" type="text"
+          placeholder="cth. ESP32 Greenhouse A" maxlength="60"
+          class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light"
+          required />
+        <button type="submit" :disabled="isLoading || !newDeviceName.trim()"
+          class="bg-brand text-white px-5 py-3 rounded-xl font-semibold text-sm hover:bg-brand/90 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 min-w-[150px] shadow-md shadow-brand/20">
           <svg v-if="isLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
           <PlusIcon v-else class="w-4 h-4" />
-          <span>{{ isLoading ? 'Generating...' : 'Generate Token' }}</span>
+          <span>{{ isLoading ? 'Membuat...' : 'Buat Token' }}</span>
         </button>
       </form>
     </div>
 
-    <!-- Device list -->
-    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-      <div class="flex items-center justify-between mb-5">
-        <h3 class="text-gray-900 font-semibold">Registered Devices</h3>
-        <span class="text-xs text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full font-medium">
-          {{ devices.length }} device{{ devices.length !== 1 ? 's' : '' }}
+    <!-- Daftar Perangkat -->
+    <div class="bg-white rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-sm border border-gray-100">
+      <div class="flex items-center justify-between mb-4 md:mb-5">
+        <h3 class="text-gray-900 font-semibold text-sm md:text-base">Perangkat Terdaftar</h3>
+        <span class="text-[10px] md:text-xs text-gray-500 bg-gray-100 px-2.5 py-1 md:px-3 md:py-1.5 rounded-full font-medium">
+          {{ devices.length }} perangkat
         </span>
       </div>
 
-      <!-- Empty state -->
-      <div v-if="devices.length === 0" class="py-16 text-center">
-        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <!-- Kosong -->
+      <div v-if="devices.length === 0" class="py-12 md:py-16 text-center">
+        <div class="w-14 h-14 md:w-16 md:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 md:w-8 md:h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
           </svg>
         </div>
-        <p class="text-gray-500 font-medium">No devices yet</p>
-        <p class="text-gray-400 text-sm mt-1">Use the form above to register your first DHT11 sensor</p>
+        <p class="text-gray-500 font-medium text-sm">Belum ada perangkat</p>
+        <p class="text-gray-400 text-xs mt-1">Gunakan formulir di atas untuk mendaftarkan sensor DHT11 pertama Anda</p>
       </div>
 
-      <!-- Table -->
-      <div v-else class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-sm">
-          <thead>
-            <tr class="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-              <th class="pb-3 font-medium pr-4">#</th>
-              <th class="pb-3 font-medium pr-4">Device Name</th>
-              <th class="pb-3 font-medium pr-4">API Token</th>
-              <th class="pb-3 font-medium pr-4">Created</th>
-              <th class="pb-3 font-medium text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-50">
-            <tr v-for="device in devices" :key="device.id" class="hover:bg-gray-50/60 transition-colors">
-              <td class="py-4 pr-4">
-                <span class="w-7 h-7 rounded-lg bg-gray-100 text-gray-600 font-bold text-xs flex items-center justify-center">
-                  {{ device.id }}
-                </span>
-              </td>
+      <!-- Daftar kartu perangkat (mobile-friendly) -->
+      <div v-else class="space-y-3">
+        <div v-for="device in devices" :key="device.id" class="border border-gray-100 rounded-2xl overflow-hidden">
+          <!-- Baris utama -->
+          <div class="p-4 flex items-center justify-between gap-3">
+            <div class="flex items-center space-x-3 min-w-0 flex-1">
+              <span class="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 font-bold text-xs flex items-center justify-center shrink-0">
+                {{ device.id }}
+              </span>
+              <div class="min-w-0">
+                <div class="flex items-center space-x-1.5">
+                  <div class="w-2 h-2 bg-brand-light rounded-full shrink-0"></div>
+                  <span class="font-semibold text-gray-900 text-sm truncate">{{ device.device_name }}</span>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-0.5">
+                  {{ new Date(device.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }}
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button @click="toggleArduino(device.id)" title="Kode Arduino"
+                :class="['w-8 h-8 flex items-center justify-center rounded-lg border transition',
+                  expandedArduino === device.id ? 'bg-brand-light border-brand-light text-white' : 'border-gray-200 text-gray-400 hover:text-brand-light bg-white']">
+                <CodeBracketIcon class="w-4 h-4" />
+              </button>
+              <button @click="copyToken(device.api_token, device.id)" title="Salin Token"
+                :class="['w-8 h-8 flex items-center justify-center rounded-lg border transition',
+                  copiedId === device.id ? 'bg-brand-light border-brand-light text-white' : 'border-gray-200 text-gray-400 hover:text-brand-light bg-white']">
+                <CheckIcon v-if="copiedId === device.id" class="w-4 h-4" />
+                <DocumentDuplicateIcon v-else class="w-4 h-4" />
+              </button>
+              <button @click="deleteDevice(device.id, device.device_name)" title="Hapus"
+                class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 transition">
+                <TrashIcon class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-              <td class="py-4 pr-4">
+          <!-- Token display -->
+          <div class="px-4 pb-3 -mt-1">
+            <code class="bg-gray-50 text-gray-600 px-2.5 py-1.5 rounded-lg text-[10px] md:text-xs font-mono block truncate">
+              {{ device.api_token }}
+            </code>
+          </div>
+
+          <!-- Dropdown: Kode Arduino -->
+          <Transition name="slide">
+            <div v-if="expandedArduino === device.id" class="border-t border-gray-100 bg-gray-900 text-green-400 p-4">
+              <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center space-x-2">
-                  <div class="w-2 h-2 bg-brand-light rounded-full"></div>
-                  <span class="font-semibold text-gray-900">{{ device.device_name }}</span>
+                  <CodeBracketIcon class="w-4 h-4 text-green-500" />
+                  <span class="text-xs font-semibold text-green-400">Kode Arduino — {{ device.device_name }}</span>
                 </div>
-              </td>
-
-              <td class="py-4 pr-4 max-w-xs">
-                <div class="flex items-center gap-2">
-                  <code class="bg-gray-100 text-gray-700 px-2.5 py-1.5 rounded-lg text-xs font-mono truncate max-w-[220px] block">
-                    {{ device.api_token }}
-                  </code>
-                  <button
-                    @click="copyToken(device.api_token, device.id)"
-                    class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border transition"
-                    :class="copiedId === device.id
-                      ? 'bg-brand-light border-brand-light text-white'
-                      : 'border-gray-200 text-gray-400 hover:border-brand-light hover:text-brand-light bg-white'"
-                    title="Copy token"
-                  >
-                    <CheckIcon v-if="copiedId === device.id" class="w-4 h-4" />
-                    <DocumentDuplicateIcon v-else class="w-4 h-4" />
-                  </button>
-                </div>
-              </td>
-
-              <td class="py-4 pr-4 text-gray-500 text-xs whitespace-nowrap">
-                {{ new Date(device.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }}
-              </td>
-
-              <td class="py-4 text-right">
-                <button
-                  @click="deleteDevice(device.id, device.device_name)"
-                  class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 ml-auto transition"
-                  title="Delete device"
-                >
-                  <TrashIcon class="w-4 h-4" />
+                <button @click="copyArduinoCode(device)"
+                  class="text-[10px] font-semibold bg-green-400/20 hover:bg-green-400/30 text-green-400 px-3 py-1 rounded-lg transition flex items-center gap-1.5">
+                  <DocumentDuplicateIcon class="w-3 h-3" />
+                  Salin Kode
                 </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+              <pre class="text-[10px] md:text-xs font-mono leading-relaxed overflow-x-auto max-h-[400px] overflow-y-auto whitespace-pre"><code>{{ getArduinoCode(device) }}</code></pre>
+            </div>
+          </Transition>
+        </div>
       </div>
     </div>
 
-    <!-- Usage guide -->
-    <div class="bg-[#f0fdf4] border border-[#bbf7d0] rounded-3xl p-6">
-      <h3 class="text-gray-900 font-semibold mb-3 flex items-center gap-2">
-        <svg class="w-5 h-5 text-brand-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <!-- Panduan -->
+    <div class="bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl md:rounded-3xl p-4 md:p-6">
+      <h3 class="text-gray-900 font-semibold text-sm md:text-base mb-2 md:mb-3 flex items-center gap-2">
+        <svg class="w-4 h-4 md:w-5 md:h-5 text-brand-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        How to send data from your device
+        Cara Mengirim Data dari Perangkat
       </h3>
-      <p class="text-gray-600 text-sm mb-3">Send a POST request to the backend endpoint:</p>
-      <div class="bg-gray-900 text-green-400 font-mono text-xs rounded-xl p-4 overflow-x-auto">
-        <pre>POST http://&lt;server-ip&gt;:5000/api/sensor/data
+      <p class="text-gray-600 text-xs md:text-sm mb-3">Kirim permintaan POST ke endpoint backend:</p>
+      <div class="bg-gray-900 text-green-400 font-mono text-[10px] md:text-xs rounded-xl p-3 md:p-4 overflow-x-auto">
+        <pre>POST http://&lt;ip-server&gt;:5000/api/sensor/data
 Content-Type: application/json
 
 {
-  "api_token": "&lt;your-device-token&gt;",
+  "api_token": "&lt;token-perangkat-anda&gt;",
   "temperature": 32.5,
   "humidity": 65.0
 }</pre>
@@ -233,4 +359,7 @@ Content-Type: application/json
 <style scoped>
 .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-10px) scale(0.95); }
+.slide-enter-active, .slide-leave-active { transition: all 0.3s ease; }
+.slide-enter-from, .slide-leave-to { max-height: 0; opacity: 0; overflow: hidden; }
+.slide-enter-to, .slide-leave-from { max-height: 1000px; opacity: 1; }
 </style>
