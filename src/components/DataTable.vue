@@ -46,7 +46,7 @@ const pageNumbers = () => {
     </div>
 
     <!-- Table -->
-    <div class="overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0">
+    <div class="overflow-x-auto overflow-y-auto max-h-[350px] -mx-4 md:mx-0 px-4 md:px-0">
       <table class="w-full text-left border-collapse min-w-[500px]">
         <thead>
           <tr class="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
