@@ -119,10 +119,27 @@ const updateLatestCards = () => {
 // ────────────────────────────────────
 // Watch: refetch when device selection changes
 // ────────────────────────────────────
-watch(selectedDevice, async () => {
+watch(selectedDevice, async (newDeviceId) => {
   currentTemp.value = '--'
   currentHum.value = '--'
+  lastUpdateTime.value = '--'
+
   await fetchHistory()
+
+  // Immediately load latest reading for that device from the server
+  if (newDeviceId) {
+    try {
+      const res = await axios.get(`${API_BASE}/sensor/latest/${newDeviceId}`)
+      if (res.data) {
+        currentTemp.value = Number(res.data.temperature)
+        currentHum.value = Number(res.data.humidity)
+        lastUpdateTime.value = new Date(res.data.created_at).toLocaleTimeString()
+      }
+    } catch (e) { /* no data yet for device */ }
+  } else {
+    // All devices: pick the most recent row from all tableData
+    updateLatestCards()
+  }
 })
 
 // ────────────────────────────────────
