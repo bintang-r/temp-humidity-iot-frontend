@@ -7,14 +7,10 @@ import {
   ArrowRightOnRectangleIcon
 } from '@heroicons/vue/24/outline'
 
-const props = defineProps({
-  currentView: {
-    type: String,
-    default: 'dashboard'
-  }
-})
+import { useRoute } from 'vue-router'
 
-const emit = defineEmits(['navigate', 'logout'])
+const route = useRoute()
+const emit = defineEmits(['logout'])
 </script>
 
 <template>
@@ -44,49 +40,49 @@ const emit = defineEmits(['navigate', 'logout'])
     <div class="px-4 flex-1">
       <p class="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Navigasi</p>
       <nav class="space-y-1">
-        <button 
-          @click="emit('navigate', 'dashboard')"
+        <router-link 
+          to="/dashboard"
           :class="[
             'w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition group',
-            currentView === 'dashboard' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+            route.path === '/dashboard' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
           ]"
         >
-          <HomeIcon class="w-5 h-5" :class="currentView === 'dashboard' ? 'text-brand-light' : 'group-hover:text-white'" />
+          <HomeIcon class="w-5 h-5" :class="route.path === '/dashboard' ? 'text-brand-light' : 'group-hover:text-white'" />
           <span class="font-medium text-sm">Dasbor</span>
-        </button>
+        </router-link>
         
-        <button 
-          @click="emit('navigate', 'devices')"
+        <router-link 
+          to="/devices"
           :class="[
             'w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition group mt-1',
-            currentView === 'devices' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+            route.path === '/devices' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
           ]"
         >
-          <CpuChipIcon class="w-5 h-5" :class="currentView === 'devices' ? 'text-brand-light' : 'group-hover:text-white'" />
+          <CpuChipIcon class="w-5 h-5" :class="route.path === '/devices' ? 'text-brand-light' : 'group-hover:text-white'" />
           <span class="font-medium text-sm">Perangkat & Token</span>
-        </button>
+        </router-link>
 
-        <button 
-          @click="emit('navigate', 'account')"
+        <router-link 
+          to="/account"
           :class="[
             'w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition group mt-1',
-            currentView === 'account' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+            route.path === '/account' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
           ]"
         >
-          <UserIcon class="w-5 h-5" :class="currentView === 'account' ? 'text-brand-light' : 'group-hover:text-white'" />
+          <UserIcon class="w-5 h-5" :class="route.path === '/account' ? 'text-brand-light' : 'group-hover:text-white'" />
           <span class="font-medium text-sm">Akun Saya</span>
-        </button>
+        </router-link>
 
-        <button 
-          @click="emit('navigate', 'settings')"
+        <router-link 
+          to="/settings"
           :class="[
             'w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition group mt-1',
-            currentView === 'settings' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+            route.path === '/settings' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
           ]"
         >
-          <CogIcon class="w-5 h-5" :class="currentView === 'settings' ? 'text-brand-light' : 'group-hover:text-white'" />
+          <CogIcon class="w-5 h-5" :class="route.path === '/settings' ? 'text-brand-light' : 'group-hover:text-white'" />
           <span class="font-medium text-sm">Pengaturan Batas</span>
-        </button>
+        </router-link>
       </nav>
     </div>
 
