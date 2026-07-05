@@ -27,7 +27,10 @@ const handleLogout = () => {
 // ────────────────────────────────────
 const sensorLimits = ref(null)
 const isAlerting = ref(false)
+const alertType = ref('')
+const alertMessage = ref('')
 const lastAlertTime = ref(0)
+let alertTimeout = null
 
 const fetchSensorLimits = async () => {
   try {
@@ -38,11 +41,15 @@ const fetchSensorLimits = async () => {
   } catch (e) { console.error('fetchSensorLimits error', e) }
 }
 
-const playAlertSound = () => {
-  const nowTime = Date.now()
-  if (nowTime - lastAlertTime.value < 3000) return
-  lastAlertTime.value = nowTime
-  
+const speakAlert = (text) => {
+  const synth = window.speechSynthesis
+  if (!synth) return
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'id-ID' // Bahasa Indonesia
+  synth.speak(utterance)
+}
+
+const playAlertSound = (type) => {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext
     if (!AudioContext) return
@@ -51,10 +58,26 @@ const playAlertSound = () => {
     const gain = ctx.createGain()
     osc.type = 'square'
     
-    // Siren-like effect
-    osc.frequency.setValueAtTime(600, ctx.currentTime)
-    osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.2)
-    osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.4)
+    if (type === 'max_temp') {
+      // Nada tinggi dan nyaring
+      osc.frequency.setValueAtTime(800, ctx.currentTime)
+      osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.2)
+      osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.4)
+    } else if (type === 'min_temp') {
+      // Nada rendah berulang lambat
+      osc.frequency.setValueAtTime(400, ctx.currentTime)
+      osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.5)
+    } else if (type === 'max_hum') {
+      // Nada menengah bergelombang
+      osc.frequency.setValueAtTime(600, ctx.currentTime)
+      osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.1)
+      osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.2)
+      osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.3)
+      osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.4)
+    } else if (type === 'min_hum') {
+      // Nada stabil
+      osc.frequency.setValueAtTime(450, ctx.currentTime)
+    }
     
     gain.gain.setValueAtTime(0.1, ctx.currentTime)
     
@@ -65,23 +88,48 @@ const playAlertSound = () => {
     setTimeout(() => {
       osc.stop()
       ctx.close()
-    }, 500)
+    }, type.includes('min') ? 1000 : 500)
   } catch (e) {
     console.error('Audio alert error:', e)
   }
+}
+
+const triggerAlert = (type, message) => {
+  alertType.value = type
+  alertMessage.value = message
+  isAlerting.value = true
+  
+  const nowTime = Date.now()
+  // Beri jeda 5 detik antar suara agar tidak saling tumpang tindih
+  if (nowTime - lastAlertTime.value > 5000) {
+    lastAlertTime.value = nowTime
+    
+    // Bicara dulu
+    speakAlert(message.replace('Peringatan: ', ''))
+    
+    // Tunggu sedikit sebelum bunyi buzzer web
+    setTimeout(() => playAlertSound(type), 1500)
+  }
+
+  if (alertTimeout) clearTimeout(alertTimeout)
+  alertTimeout = setTimeout(() => {
+    isAlerting.value = false
+  }, 5000)
 }
 
 const checkLimits = (temp, hum) => {
   if (!sensorLimits.value) return
   
   const limits = sensorLimits.value
-  const isTempExceeded = temp > limits.max_temp || temp < limits.min_temp
-  const isHumExceeded = hum > limits.max_hum || hum < limits.min_hum
   
-  if (isTempExceeded || isHumExceeded) {
-    isAlerting.value = true
-    playAlertSound()
-    setTimeout(() => { isAlerting.value = false }, 3000)
+  if (temp > limits.max_temp) {
+    triggerAlert('max_temp', `Peringatan: Suhu maksimum tercapai! Saat ini: ${temp.toFixed(1)}°C (Max: ${limits.max_temp}°C)`)
+  } else if (temp < limits.min_temp) {
+    triggerAlert('min_temp', `Peringatan: Suhu minimum tercapai! Saat ini: ${temp.toFixed(1)}°C (Min: ${limits.min_temp}°C)`)
+  } else if (hum > limits.max_hum) {
+    triggerAlert('max_hum', `Peringatan: Kelembaban maksimum tercapai! Saat ini: ${hum.toFixed(1)}% (Max: ${limits.max_hum}%)`)
+  } else if (hum < limits.min_hum) {
+    triggerAlert('min_hum', `Peringatan: Kelembaban minimum tercapai! Saat ini: ${hum.toFixed(1)}% (Min: ${limits.min_hum}%)`)
   }
 }
 
@@ -124,11 +172,14 @@ onUnmounted(() => {
       <main class="flex-1 overflow-y-auto px-4 md:px-8 pb-20 md:pb-8">
         
         <!-- Alert Banner (Global) -->
-        <div v-if="isAlerting" class="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl flex items-center shadow-sm animate-pulse mb-5 max-w-7xl mx-auto">
-          <svg class="w-6 h-6 mr-3 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div v-if="isAlerting" :class="[
+          'px-4 py-3 rounded-2xl flex items-center shadow-sm animate-pulse mb-5 max-w-7xl mx-auto border',
+          alertType.includes('min') ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-red-50 border-red-200 text-red-700'
+        ]">
+          <svg :class="['w-6 h-6 mr-3 shrink-0', alertType.includes('min') ? 'text-blue-500' : 'text-red-500']" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <span class="font-medium">Peringatan: Batas sensor telah terlampaui!</span>
+          <span class="font-medium">{{ alertMessage }}</span>
         </div>
 
         <router-view></router-view>
