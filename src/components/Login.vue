@@ -3,8 +3,9 @@ import { ref } from 'vue'
 import axios from 'axios'
 import { LockClosedIcon, UserIcon, ArrowRightOnRectangleIcon } from '@heroicons/vue/24/outline'
 
-const emit = defineEmits(['login-success'])
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 
 const username = ref('')
@@ -33,7 +34,7 @@ const handleLogin = async () => {
     // Set axios default header untuk request selanjutnya
     axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`
     
-    emit('login-success')
+    router.push('/dashboard')
   } catch (err) {
     errorMsg.value = err.response?.data?.message || 'Gagal terhubung ke server'
   } finally {

@@ -12,11 +12,15 @@ const SOCKET_URL = API_BASE.replace('/api', '')
 const route = useRoute()
 const router = useRouter()
 
-const emit = defineEmits(['logout'])
-
 let socket
 const now = ref(Date.now())
 let nowInterval
+
+const handleLogout = () => {
+  localStorage.removeItem('auth_token')
+  delete axios.defaults.headers.common['Authorization']
+  router.push('/login')
+}
 
 // ────────────────────────────────────
 // Sensor Limits & Alert Logic
@@ -102,7 +106,7 @@ onUnmounted(() => {
 <template>
   <div class="flex h-screen overflow-hidden bg-[#f0f4f2]">
     <!-- Sidebar (desktop only) -->
-    <Sidebar @logout="emit('logout')" />
+    <Sidebar @logout="handleLogout" />
 
     <div class="flex-1 md:ml-64 flex flex-col h-screen overflow-hidden">
 
