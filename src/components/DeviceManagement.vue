@@ -68,6 +68,12 @@ const toggleArduino = (id) => {
 }
 
 const getArduinoCode = (device) => {
+  // Generate Server URL dynamically based on frontend URL
+  const serverUrl = new URL('/api/sensor/data', window.location.origin);
+  if (window.location.port !== '5000' && window.location.hostname === 'localhost') {
+    serverUrl.port = '5000'; // Default dev backend port
+  }
+
   return `// ============================================================
 // DHT11 Realtime Monitor - ESP32
 // Perangkat : ${device.device_name}
@@ -76,7 +82,6 @@ const getArduinoCode = (device) => {
 // ============================================================
 
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
@@ -84,13 +89,13 @@ const getArduinoCode = (device) => {
 // -----------------------------------------------------------
 // Konfigurasi WiFi
 // -----------------------------------------------------------
-const char* WIFI_SSID     = "BINTANG";
-const char* WIFI_PASSWORD = "bintanG321123";
+const char* WIFI_SSID     = "NAMA_WIFI_ANDA";
+const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";
 
 // -----------------------------------------------------------
 // Konfigurasi Server
 // -----------------------------------------------------------
-const char* SERVER_URL = "http://192.168.1.9:5000/api/sensor/data";
+const char* SERVER_URL = "${serverUrl.href}";
 
 // -----------------------------------------------------------
 // API Token
@@ -98,11 +103,11 @@ const char* SERVER_URL = "http://192.168.1.9:5000/api/sensor/data";
 const char* API_TOKEN = "${device.api_token}";
 
 // -----------------------------------------------------------
-// Konfigurasi DHT11
+// Konfigurasi Hardware (PIN)
 // -----------------------------------------------------------
-// Ganti sesuai pin yang digunakan
 #define DHTPIN 4
 #define DHTTYPE DHT11
+#define BUZZER_PIN 5
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -113,10 +118,21 @@ const unsigned long KIRIM_INTERVAL = 5000;
 unsigned long waktuSebelumnya = 0;
 
 // -----------------------------------------------------------
+// Pola Suara Buzzer (Buzzer Aktif/Pasif)
+// -----------------------------------------------------------
+void playBuzzer(int beepCount, int delayMs) {
+  for (int i = 0; i < beepCount; i++) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(delayMs);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(delayMs);
+  }
+}
+
+// -----------------------------------------------------------
 // Fungsi Koneksi WiFi
 // -----------------------------------------------------------
 void connectWiFi() {
-
   Serial.println();
   Serial.print("Menghubungkan ke WiFi: ");
   Serial.println(WIFI_SSID);
@@ -139,9 +155,11 @@ void connectWiFi() {
 // Setup
 // -----------------------------------------------------------
 void setup() {
-
   Serial.begin(115200);
   delay(1000);
+  
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
 
   Serial.println("==================================");
   Serial.println("DHT11 Realtime Monitor ESP32");
@@ -149,7 +167,6 @@ void setup() {
   Serial.println("==================================");
 
   dht.begin();
-
   connectWiFi();
 }
 
@@ -157,7 +174,6 @@ void setup() {
 // Loop
 // -----------------------------------------------------------
 void loop() {
-
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi terputus, mencoba reconnect...");
     WiFi.reconnect();
@@ -166,69 +182,79 @@ void loop() {
   unsigned long sekarang = millis();
 
   if (sekarang - waktuSebelumnya >= KIRIM_INTERVAL) {
-
     waktuSebelumnya = sekarang;
 
     float suhu = dht.readTemperature();
     float kelembaban = dht.readHumidity();
 
     if (isnan(suhu) || isnan(kelembaban)) {
-
       Serial.println("[ERROR] Gagal membaca sensor DHT11");
       return;
     }
 
     Serial.println("----------------------------------");
-    Serial.print("Suhu       : ");
-    Serial.print(suhu);
-    Serial.println(" °C");
-
-    Serial.print("Kelembaban : ");
-    Serial.print(kelembaban);
-    Serial.println(" %");
+    Serial.print("Suhu       : "); Serial.print(suhu); Serial.println(" C");
+    Serial.print("Kelembaban : "); Serial.print(kelembaban); Serial.println(" %");
 
     if (WiFi.status() == WL_CONNECTED) {
-
       WiFiClient client;
       HTTPClient http;
 
       http.begin(client, SERVER_URL);
       http.addHeader("Content-Type", "application/json");
 
-      StaticJsonDocument<256> doc;
-
-      doc["api_token"]   = API_TOKEN;
-      doc["temperature"] = suhu;
-      doc["humidity"]    = kelembaban;
+      StaticJsonDocument<256> docReq;
+      docReq["api_token"]   = API_TOKEN;
+      docReq["temperature"] = suhu;
+      docReq["humidity"]    = kelembaban;
 
       String payload;
-      serializeJson(doc, payload);
-
-      Serial.print("Mengirim JSON: ");
-      Serial.println(payload);
+      serializeJson(docReq, payload);
 
       int httpCode = http.POST(payload);
 
       if (httpCode > 0) {
-
         String response = http.getString();
+        Serial.print("[OK] HTTP Code : "); Serial.println(httpCode);
 
-        Serial.print("[OK] HTTP Code : ");
-        Serial.println(httpCode);
+        // Parsing response untuk mendapatkan pengaturan batas dari server
+        StaticJsonDocument<512> docRes;
+        DeserializationError error = deserializeJson(docRes, response);
 
-        Serial.print("[OK] Response  : ");
-        Serial.println(response);
+        if (!error && docRes.containsKey("settings") && !docRes["settings"].isNull()) {
+          float max_temp = docRes["settings"]["max_temp"];
+          float min_temp = docRes["settings"]["min_temp"];
+          float max_hum  = docRes["settings"]["max_hum"];
+          float min_hum  = docRes["settings"]["min_hum"];
 
+          // Logika Peringatan (Alarm)
+          bool alert = false;
+          if (suhu > max_temp) {
+            Serial.println("=> [PERINGATAN] Suhu terlalu TINGGI!");
+            playBuzzer(4, 100); // 4 bunyi cepat
+            alert = true;
+          } else if (suhu < min_temp) {
+            Serial.println("=> [PERINGATAN] Suhu terlalu RENDAH!");
+            playBuzzer(2, 500); // 2 bunyi lambat
+            alert = true;
+          }
+
+          if (!alert) {
+            if (kelembaban > max_hum) {
+              Serial.println("=> [PERINGATAN] Kelembaban terlalu TINGGI!");
+              playBuzzer(3, 200); // 3 bunyi sedang
+            } else if (kelembaban < min_hum) {
+              Serial.println("=> [PERINGATAN] Kelembaban terlalu RENDAH!");
+              playBuzzer(1, 1000); // 1 bunyi panjang
+            }
+          }
+        }
       } else {
-
         Serial.print("[ERROR] HTTP Gagal : ");
         Serial.println(http.errorToString(httpCode));
       }
-
       http.end();
-
     } else {
-
       Serial.println("[WARN] WiFi tidak terhubung");
     }
   }
