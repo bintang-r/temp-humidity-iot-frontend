@@ -6,9 +6,10 @@ import MainChart from './MainChart.vue'
 import DataTable from './DataTable.vue'
 import DeviceManagement from './DeviceManagement.vue'
 import AccountManagement from './AccountManagement.vue'
+import SettingsManagement from './SettingsManagement.vue'
 import axios from 'axios'
 import { io } from 'socket.io-client'
-import { HomeIcon, CpuChipIcon, UserIcon } from '@heroicons/vue/24/outline'
+import { HomeIcon, CpuChipIcon, UserIcon, CogIcon } from '@heroicons/vue/24/outline'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 const SOCKET_URL = API_BASE.replace('/api', '')
@@ -30,6 +31,70 @@ const selectedDevice = ref('') // '' = All devices
 
 const tableData = ref([])
 let socket
+
+// ────────────────────────────────────
+// Sensor Limits & Alert Logic
+// ────────────────────────────────────
+const sensorLimits = ref(null)
+const isAlerting = ref(false)
+const lastAlertTime = ref(0)
+
+const fetchSensorLimits = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/settings`)
+    if (res.data) {
+      sensorLimits.value = res.data
+    }
+  } catch (e) { console.error('fetchSensorLimits error', e) }
+}
+
+const playAlertSound = () => {
+  // Prevent spamming the sound (e.g., max once every 3 seconds)
+  const nowTime = Date.now()
+  if (nowTime - lastAlertTime.value < 3000) return
+  lastAlertTime.value = nowTime
+  
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext
+    if (!AudioContext) return
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'square'
+    
+    // Siren-like effect
+    osc.frequency.setValueAtTime(600, ctx.currentTime)
+    osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.2)
+    osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.4)
+    
+    gain.gain.setValueAtTime(0.1, ctx.currentTime)
+    
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    
+    osc.start()
+    setTimeout(() => {
+      osc.stop()
+      ctx.close()
+    }, 500)
+  } catch (e) {
+    console.error('Audio alert error:', e)
+  }
+}
+
+const checkLimits = (temp, hum) => {
+  if (!sensorLimits.value) return
+  
+  const limits = sensorLimits.value
+  const isTempExceeded = temp > limits.max_temp || temp < limits.min_temp
+  const isHumExceeded = hum > limits.max_hum || hum < limits.min_hum
+  
+  if (isTempExceeded || isHumExceeded) {
+    isAlerting.value = true
+    playAlertSound()
+    setTimeout(() => { isAlerting.value = false }, 3000)
+  }
+}
 
 // ────────────────────────────────────
 // Computed: filter table & chart data by selected device
@@ -192,6 +257,7 @@ const getStatusColor = (status) => {
 onMounted(async () => {
   await fetchDevices()
   await fetchHistory()
+  await fetchSensorLimits()
 
   nowInterval = setInterval(() => { now.value = Date.now() }, 5000)
 
@@ -226,6 +292,9 @@ onMounted(async () => {
       currentHum.value = Number(data.humidity)
       lastUpdateTime.value = new Date(data.created_at).toLocaleTimeString()
     }
+    
+    // Check limits for alert
+    checkLimits(Number(data.temperature), Number(data.humidity))
   })
 })
 
@@ -246,7 +315,7 @@ onUnmounted(() => {
       <header class="h-16 md:h-20 flex items-center justify-between px-4 md:px-8 bg-[#f0f4f2] z-10 shrink-0">
         <div>
           <h1 class="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
-            {{ currentView === 'devices' ? 'Perangkat & Token' : currentView === 'account' ? 'Pengaturan Akun' : 'Dasbor' }}
+            {{ currentView === 'devices' ? 'Perangkat & Token' : currentView === 'account' ? 'Pengaturan Akun' : currentView === 'settings' ? 'Pengaturan Batas' : 'Dasbor' }}
           </h1>
           <p v-if="currentView === 'dashboard'" class="text-xs text-gray-400 mt-0.5">Monitor Sensor DHT11 Realtime</p>
         </div>
@@ -268,8 +337,19 @@ onUnmounted(() => {
         <!-- ACCOUNT MANAGEMENT VIEW -->
         <AccountManagement v-else-if="currentView === 'account'" />
 
+        <!-- SETTINGS MANAGEMENT VIEW -->
+        <SettingsManagement v-else-if="currentView === 'settings'" />
+
         <!-- DASHBOARD VIEW -->
         <div v-else class="max-w-7xl mx-auto space-y-5">
+          
+          <!-- Alert Banner -->
+          <div v-if="isAlerting" class="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl flex items-center shadow-sm animate-pulse">
+            <svg class="w-6 h-6 mr-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span class="font-medium">Peringatan: Batas sensor telah terlampaui!</span>
+          </div>
 
           <!-- ── Device Selector Bar ── -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl px-5 py-3 shadow-sm border border-gray-100">
@@ -431,6 +511,13 @@ onUnmounted(() => {
         >
           <UserIcon class="w-6 h-6" />
           <span class="text-[10px] mt-1 font-medium">Akun</span>
+        </button>
+        <button
+          @click="currentView = 'settings'"
+          :class="['flex-1 flex flex-col items-center py-3 transition', currentView === 'settings' ? 'text-brand-light' : 'text-gray-400']"
+        >
+          <CogIcon class="w-6 h-6" />
+          <span class="text-[10px] mt-1 font-medium">Pengaturan</span>
         </button>
       </nav>
 

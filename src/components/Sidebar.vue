@@ -3,6 +3,7 @@ import {
   HomeIcon, 
   CpuChipIcon,
   UserIcon,
+  CogIcon,
   ArrowRightOnRectangleIcon
 } from '@heroicons/vue/24/outline'
 
@@ -74,6 +75,17 @@ const emit = defineEmits(['navigate', 'logout'])
         >
           <UserIcon class="w-5 h-5" :class="currentView === 'account' ? 'text-brand-light' : 'group-hover:text-white'" />
           <span class="font-medium text-sm">Akun Saya</span>
+        </button>
+
+        <button 
+          @click="emit('navigate', 'settings')"
+          :class="[
+            'w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition group mt-1',
+            currentView === 'settings' ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+          ]"
+        >
+          <CogIcon class="w-5 h-5" :class="currentView === 'settings' ? 'text-brand-light' : 'group-hover:text-white'" />
+          <span class="font-medium text-sm">Pengaturan Batas</span>
         </button>
       </nav>
     </div>
