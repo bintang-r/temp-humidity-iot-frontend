@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { CheckIcon, KeyIcon, UserIcon, TrashIcon, UserPlusIcon } from '@heroicons/vue/24/outline'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+import { API_BASE } from '../config'
 
 // Tabs
 const activeTab = ref('profile') // 'profile' or 'users'

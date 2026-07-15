@@ -6,7 +6,7 @@ import DataTable from './DataTable.vue'
 import axios from 'axios'
 import { io } from 'socket.io-client'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+import { API_BASE } from '../config'
 const SOCKET_URL = API_BASE.replace('/api', '')
 
 const currentTemp = ref('--')

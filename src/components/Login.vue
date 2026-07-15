@@ -6,7 +6,7 @@ import { LockClosedIcon, UserIcon, ArrowRightOnRectangleIcon } from '@heroicons/
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+import { API_BASE } from '../config'
 
 const username = ref('')
 const password = ref('')
